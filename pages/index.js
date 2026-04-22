@@ -2,7 +2,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 
-const PRESENTATION_ID = '1OaxpxNqroKJ2pjUk8CJ5zCfOUH_VGXGc';
+const PRESENTATION_ID = '1Oiqm4c91gB9sH31T-fcdSI0eTysspC3A';
 const DOWNLOAD_URL = `https://docs.google.com/presentation/d/${PRESENTATION_ID}/export/pptx`;
 
 const STORAGE_KEY_PROGRESS = `pptViewer.progress.${PRESENTATION_ID}`;

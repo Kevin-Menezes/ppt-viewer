@@ -321,7 +321,7 @@ export default function Presentation() {
   return (
     <>
       <Head>
-        <title>PPT : Page {currentSlide} of {totalSlides}</title>
+        <title>Bible Stories : Page {currentSlide} of {totalSlides}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link
           rel="icon"

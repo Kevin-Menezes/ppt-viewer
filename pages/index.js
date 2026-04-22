@@ -44,7 +44,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>PPT</title>
+        <title>Bible Stories</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23080808'/><rect x='6' y='8' width='20' height='16' rx='1' fill='none' stroke='%23c8a96e' stroke-width='1.5'/><line x1='10' y1='12' x2='22' y2='12' stroke='%23c8a96e' stroke-width='1'/><line x1='10' y1='16' x2='18' y2='16' stroke='%23c8a96e' stroke-width='1'/></svg>" />
       </Head>
@@ -90,7 +90,7 @@ export default function Home() {
               transform: mounted ? 'translateY(0)' : 'translateY(16px)',
             }}
           >
-            When you get to know more, you'll begin to love Him even more.
+            When you get to know more about God, you'll begin to love Him even more.
           </p>
 
           <div

@@ -72,3 +72,25 @@ This project is configured for static export (`output: 'export'`). The static ou
 
 - Set `NEXT_PUBLIC_BASE_PATH` to your repo subpath (example: `/ppt-viewer-interface`) when building for Pages.
 - Deploy the contents of `out/`.
+
+## Local Development Configuration
+
+When working locally, ensure the following files are configured without the `/bible-stories` prefix:
+
+**next.config.js:**
+```js
+basePath: '',
+assetPrefix: '',
+```
+
+**pages/presentation.js:**
+```js
+const PDF_URL = '/pdf/Bible-Stories.pdf';
+```
+
+**pages/index.js:**
+```js
+const DOWNLOAD_URL = '/pdf/Bible-Stories.pdf';
+```
+
+For GitHub Pages deployment, change these to use `/bible-stories` prefix.

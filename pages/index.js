@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 const PRESENTATION_NAME = 'bible-stories';
 const DOWNLOAD_URL = '/pdf/Bible%20Stories.pdf';
-const PPT_URL = '/ppt/Bible%20Stories.pptx';
+const PPT_URL = 'https://1drv.ms/p/c/9da6160325629680/IQCAlmIlAxamIICd1QMAAAAAAXgCGwaUB9WUlii7hB-n4ZE?e=rMw4Wx';
 
 const STORAGE_KEY_PROGRESS = `pdfViewer.progress.${PRESENTATION_NAME}`;
 
@@ -114,7 +114,6 @@ export default function Home() {
             <a
               className="btn btn--ghost"
               href={PPT_URL}
-              download="Bible Stories.pptx"
               target="_blank"
               rel="noreferrer"
             >

@@ -9,7 +9,7 @@ if (typeof window !== 'undefined') {
 
 const PRESENTATION_NAME = 'bible-stories';
 const PDF_URL = '/pdf/Bible%20Stories.pdf';
-const PPT_URL = '/ppt/Bible%20Stories.pptx';
+const PPT_URL = 'https://1drv.ms/p/c/9da6160325629680/IQCAlmIlAxamIICd1QMAAAAAAXgCGwaUB9WUlii7hB-n4ZE?e=rMw4Wx';
 const TOTAL_PAGES = 154; // will be updated from index
 
 const STORAGE_KEYS = {
@@ -505,7 +505,6 @@ export default function Presentation() {
                   <a
                     className="icon-btn"
                     href={PPT_URL}
-                    download="Bible Stories.pptx"
                     target="_blank"
                     rel="noreferrer"
                     title="Download PPT"
@@ -716,7 +715,6 @@ export default function Presentation() {
                   <a
                     className="icon-btn"
                     href={PPT_URL}
-                    download="Bible Stories.pptx"
                     target="_blank"
                     rel="noreferrer"
                     title="Download PPT"

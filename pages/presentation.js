@@ -8,7 +8,7 @@ if (typeof window !== 'undefined') {
 }
 
 const PRESENTATION_NAME = 'bible-stories';
-const PDF_URL = '/pdf/Bible-Stories.pdf';
+const PDF_URL = process.env.NEXT_PUBLIC_BASE_PATH ? `${process.env.NEXT_PUBLIC_BASE_PATH}/pdf/Bible-Stories.pdf` : '/pdf/Bible-Stories.pdf';
 const PPT_URL = 'https://1drv.ms/p/c/9da6160325629680/IQCAlmIlAxamIICd1QMAAAAAAXgCGwaUB9WUlii7hB-n4ZE?e=rMw4Wx';
 const TOTAL_PAGES = 154; // will be updated from index
 

@@ -1,15 +1,21 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
 
-const PRESENTATION_ID = '1OaxpxNqroKJ2pjUk8CJ5zCfOUH_VGXGc';
-const DOWNLOAD_URL = `https://docs.google.com/presentation/d/${PRESENTATION_ID}/export/pptx`;
-const TOTAL_SLIDES = 20; // adjust to your actual slide count
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+}
+
+const PRESENTATION_NAME = 'bible-stories';
+const PDF_URL = '/pdf/Bible%20Stories.pdf';
+const PPT_URL = '/ppt/Bible%20Stories.pptx';
+const TOTAL_PAGES = 154; // will be updated from index
 
 const STORAGE_KEYS = {
-  progress: `pptViewer.progress.${PRESENTATION_ID}`,
-  bookmarks: `pptViewer.bookmarks.${PRESENTATION_ID}`,
-  totalPages: `pptViewer.totalPages.${PRESENTATION_ID}`,
+  progress: `pdfViewer.progress.${PRESENTATION_NAME}`,
+  bookmarks: `pdfViewer.bookmarks.${PRESENTATION_NAME}`,
+  totalPages: `pdfViewer.totalPages.${PRESENTATION_NAME}`,
 };
 
 function safeParseJson(value, fallback) {
@@ -28,26 +34,22 @@ function normalizeForSearch(text) {
     .trim();
 }
 
-function getSlideUrl(slideNum) {
-  return `https://docs.google.com/presentation/d/${PRESENTATION_ID}/embed?rm=minimal&start=false&loop=false&delayms=3000&slide=id.p${slideNum}`;
-}
-
 export default function Presentation() {
   const router = useRouter();
-  const iframeRef = useRef(null);
-  const controlsRef = useRef(null);
   const hideTimerRef = useRef(null);
-  const transitionTimerRef = useRef(null);
   const didInitRef = useRef(false);
+  const canvasRef = useRef(null);
+  const pdfDocRef = useRef(null);
 
   const [currentSlide, setCurrentSlide] = useState(1);
-  const [totalSlides, setTotalSlides] = useState(TOTAL_SLIDES);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [totalPages, setTotalPages] = useState(TOTAL_PAGES);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [showThumbs, setShowThumbs] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
+  const [rendering, setRendering] = useState(false);
 
   const [thumbPage, setThumbPage] = useState(1);
   const [thumbQuery, setThumbQuery] = useState('');
@@ -57,12 +59,6 @@ export default function Presentation() {
 
   const bookmarkSet = useMemo(() => new Set(bookmarks), [bookmarks]);
 
-  const isTransitioningRef = useRef(isTransitioning);
-
-  useEffect(() => {
-    isTransitioningRef.current = isTransitioning;
-  }, [isTransitioning]);
-
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 80);
     return () => clearTimeout(t);
@@ -71,10 +67,65 @@ export default function Presentation() {
   useEffect(() => {
     try {
       const savedCount = Number(window.localStorage.getItem(STORAGE_KEYS.totalPages));
-      if (Number.isFinite(savedCount) && savedCount > 0) setTotalSlides(savedCount);
+      if (Number.isFinite(savedCount) && savedCount > 0) setTotalPages(savedCount);
     } catch {
     }
   }, []);
+
+  // Load PDF document
+  useEffect(() => {
+    if (!mounted) return;
+
+    const loadPDF = async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument(PDF_URL);
+        const pdf = await loadingTask.promise;
+        pdfDocRef.current = pdf;
+        setTotalPages(pdf.numPages);
+        setPdfLoaded(true);
+        try {
+          window.localStorage.setItem(STORAGE_KEYS.totalPages, String(pdf.numPages));
+        } catch {
+        }
+      } catch (error) {
+        console.error('Error loading PDF:', error);
+      }
+    };
+
+    loadPDF();
+  }, [mounted]);
+
+  // Render current page
+  useEffect(() => {
+    if (!pdfLoaded || !pdfDocRef.current || !canvasRef.current || rendering) return;
+
+    const renderPage = async () => {
+      setRendering(true);
+      try {
+        const pdf = pdfDocRef.current;
+        const page = await pdf.getPage(currentSlide);
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        await page.render(renderContext).promise;
+      } catch (error) {
+        console.error('Error rendering page:', error);
+      } finally {
+        setRendering(false);
+      }
+    };
+
+    renderPage();
+  }, [pdfLoaded, currentSlide, rendering]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,7 +146,7 @@ export default function Presentation() {
         const idx = Array.isArray(data?.index) ? data.index : null;
 
         if (Number.isFinite(count) && count > 0) {
-          setTotalSlides(count);
+          setTotalPages(count);
           try {
             window.localStorage.setItem(STORAGE_KEYS.totalPages, String(count));
           } catch {
@@ -132,14 +183,14 @@ export default function Presentation() {
     const fromQuery = Array.isArray(fromQueryRaw) ? fromQueryRaw[0] : fromQueryRaw;
     const queryPage = Number(fromQuery);
 
-    let initialSlide = 1;
+    let initialPage = 1;
     if (Number.isFinite(queryPage) && queryPage >= 1) {
-      initialSlide = Math.max(1, Math.min(totalSlides, queryPage));
+      initialPage = Math.max(1, Math.min(totalPages, queryPage));
     } else {
       const saved = safeParseJson(window.localStorage.getItem(STORAGE_KEYS.progress), null);
       const savedPage = Number(saved?.page ?? saved?.slide);
       if (Number.isFinite(savedPage) && savedPage >= 1) {
-        initialSlide = Math.max(1, Math.min(totalSlides, savedPage));
+        initialPage = Math.max(1, Math.min(totalPages, savedPage));
       }
     }
 
@@ -147,55 +198,34 @@ export default function Presentation() {
     if (Array.isArray(savedBookmarks)) {
       const normalized = savedBookmarks
         .map((n) => Number(n))
-        .filter((n) => Number.isFinite(n) && n >= 1 && n <= totalSlides);
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= totalPages);
       const uniqueSorted = Array.from(new Set(normalized)).sort((a, b) => a - b);
       setBookmarks(uniqueSorted);
     }
 
-    if (initialSlide !== 1) {
-      setIsTransitioning(true);
-      setCurrentSlide(initialSlide);
+    if (initialPage !== 1) {
+      setCurrentSlide(initialPage);
     }
-  }, [router.isReady, router.query, totalSlides]);
+  }, [router.isReady, router.query, totalPages]);
 
-  /* ── Slide navigation ── */
-  const goToSlide = useCallback(
+  /* ── Page navigation ── */
+  const goToPage = useCallback(
     (n) => {
-      const target = Math.max(1, Math.min(totalSlides, n));
+      const target = Math.max(1, Math.min(totalPages, n));
       if (target === currentSlide) return;
-      if (isTransitioning) return;
-
-      isTransitioningRef.current = true;
-      clearTimeout(transitionTimerRef.current);
-      setIsTransitioning(true);
       setCurrentSlide(target);
-
-      transitionTimerRef.current = setTimeout(() => {
-        isTransitioningRef.current = false;
-        setIsTransitioning(false);
-      }, 450);
     },
-    [currentSlide, isTransitioning, totalSlides]
+    [currentSlide, totalPages]
   );
 
-  const prev = useCallback(() => goToSlide(currentSlide - 1), [currentSlide, goToSlide]);
-  const next = useCallback(() => goToSlide(currentSlide + 1), [currentSlide, goToSlide]);
+  const prev = useCallback(() => goToPage(currentSlide - 1), [currentSlide, goToPage]);
+  const next = useCallback(() => goToPage(currentSlide + 1), [currentSlide, goToPage]);
 
   /* ── Auto-hide controls on idle ── */
   const showControls = useCallback(() => {
     setControlsVisible(true);
     clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3500);
-  }, []);
-
-  const handleIframeLoad = useCallback(() => {
-    clearTimeout(transitionTimerRef.current);
-    isTransitioningRef.current = false;
-    setIsTransitioning(false);
-  }, []);
-
-  useEffect(() => {
-    return () => clearTimeout(transitionTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -271,13 +301,13 @@ export default function Presentation() {
     }
   }, [currentSlide]);
 
-  const progress = ((currentSlide - 1) / Math.max(totalSlides - 1, 1)) * 100;
+  const progress = ((currentSlide - 1) / Math.max(totalPages - 1, 1)) * 100;
 
   const thumbsPerPage = 24;
-  const totalThumbPages = Math.max(1, Math.ceil(totalSlides / thumbsPerPage));
+  const totalThumbPages = Math.max(1, Math.ceil(totalPages / thumbsPerPage));
   const safeThumbPage = Math.max(1, Math.min(totalThumbPages, thumbPage));
   const thumbStart = (safeThumbPage - 1) * thumbsPerPage + 1;
-  const thumbEnd = Math.min(totalSlides, thumbStart + thumbsPerPage - 1);
+  const thumbEnd = Math.min(totalPages, thumbStart + thumbsPerPage - 1);
 
   const isSearching = showThumbs && thumbQuery.trim().length >= 2;
   const searchMeta = useMemo(() => {
@@ -321,7 +351,7 @@ export default function Presentation() {
   return (
     <>
       <Head>
-        <title>Bible Stories : Page {currentSlide} of {totalSlides}</title>
+        <title>{`Bible Stories : Page ${currentSlide} of ${totalPages}`}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link
           rel="icon"
@@ -333,26 +363,18 @@ export default function Presentation() {
         className={`viewer ${mounted ? 'mounted' : ''}`}
         onMouseMove={showControls}
       >
-        <div className={`iframe-wrap ${isTransitioning ? 'fading' : ''}`}>
-          <iframe
-            ref={iframeRef}
-            src={getSlideUrl(currentSlide)}
-            frameBorder="0"
-            allowFullScreen
-            title={`Page ${currentSlide}`}
-            allow="autoplay"
-            onLoad={handleIframeLoad}
-          />
+        <div className="pdf-viewer-container">
+          {!pdfLoaded ? (
+            <div className="loader">
+              <span className="spinner" />
+            </div>
+          ) : (
+            <canvas ref={canvasRef} className="pdf-canvas" />
+          )}
         </div>
 
-        {isTransitioning && (
-          <div className="loader" role="status" aria-label="Loading">
-            <span className="spinner" />
-          </div>
-        )}
-
         <div className={`topbar ${controlsVisible ? 'visible' : ''}`}>
-          <button className="icon-btn" onClick={() => router.push('/')} title="Back (Esc)">
+          <button className="icon-btn" onClick={prev} title="Previous page">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <polyline points="11,4 6,9 11,14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -363,7 +385,7 @@ export default function Presentation() {
             <span className="slide-counter">
               {String(currentSlide).padStart(2, '0')}
               <span className="sep"> / </span>
-              {String(totalSlides).padStart(2, '0')}
+              {String(totalPages).padStart(2, '0')}
             </span>
           </div>
 
@@ -439,31 +461,31 @@ export default function Presentation() {
             </button>
 
             <div className="dots">
-              {Array.from({ length: Math.min(totalSlides, 9) }).map((_, i) => {
+              {Array.from({ length: Math.min(totalPages, 9) }).map((_, i) => {
                 const half = 4;
-                let slideIndex;
-                if (totalSlides <= 9) {
-                  slideIndex = i + 1;
+                let pageIndex;
+                if (totalPages <= 9) {
+                  pageIndex = i + 1;
                 } else {
-                  let start = Math.max(1, Math.min(currentSlide - half, totalSlides - 8));
-                  slideIndex = start + i;
+                  let start = Math.max(1, Math.min(currentSlide - half, totalPages - 8));
+                  pageIndex = start + i;
                 }
-                const isActive = slideIndex === currentSlide;
+                const isActive = pageIndex === currentSlide;
                 return (
                   <button
-                    key={slideIndex}
+                    key={pageIndex}
                     className={`dot ${isActive ? 'active' : ''}`}
-                    onClick={() => goToSlide(slideIndex)}
-                    title={`Page ${slideIndex}`}
+                    onClick={() => goToPage(pageIndex)}
+                    title={`Page ${pageIndex}`}
                   />
                 );
               })}
             </div>
 
             <button
-              className={`nav-btn ${currentSlide === totalSlides ? 'disabled' : ''}`}
+              className={`nav-btn ${currentSlide === totalPages ? 'disabled' : ''}`}
               onClick={next}
-              disabled={currentSlide === totalSlides}
+              disabled={currentSlide === totalPages}
               title="Next (→)"
             >
               <span>Next</span>
@@ -482,17 +504,33 @@ export default function Presentation() {
                 <div className="thumb-header-actions">
                   <a
                     className="icon-btn"
-                    href={DOWNLOAD_URL}
-                    download="presentation.pptx"
+                    href={PPT_URL}
+                    download="Bible Stories.pptx"
                     target="_blank"
                     rel="noreferrer"
-                    title="Download .pptx"
+                    title="Download PPT"
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                       <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
+                    <span>PPT</span>
+                  </a>
+                  <a
+                    className="icon-btn"
+                    href={PDF_URL}
+                    download="Bible Stories.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Download PDF"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    <span>PDF</span>
                   </a>
 
                   <button className="icon-btn" onClick={() => setShowThumbs(false)} title="Close">
@@ -577,7 +615,7 @@ export default function Presentation() {
                           key={n}
                           className={`thumb-item ${n === currentSlide ? 'active' : ''} ${marked ? 'bookmarked' : ''}`}
                           onClick={() => {
-                            goToSlide(n);
+                            goToPage(n);
                             setShowThumbs(false);
                           }}
                         >
@@ -593,12 +631,22 @@ export default function Presentation() {
                                 </svg>
                               </span>
                             ) : null}
-                            <iframe
-                              src={getSlideUrl(n)}
-                              frameBorder="0"
-                              tabIndex="-1"
-                              scrolling="no"
-                              title={`Page ${n}`}
+                            <canvas
+                              ref={(el) => {
+                                if (el && pdfDocRef.current && !el.dataset.rendered) {
+                                  el.dataset.rendered = 'true';
+                                  pdfDocRef.current.getPage(n).then((page) => {
+                                    const viewport = page.getViewport({ scale: 0.3 });
+                                    el.height = viewport.height;
+                                    el.width = viewport.width;
+                                    page.render({
+                                      canvasContext: el.getContext('2d'),
+                                      viewport: viewport,
+                                    });
+                                  });
+                                }
+                              }}
+                              className="thumb-canvas"
                             />
                           </div>
                           <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -615,7 +663,7 @@ export default function Presentation() {
                         key={n}
                         className={`thumb-item ${n === currentSlide ? 'active' : ''} ${marked ? 'bookmarked' : ''}`}
                         onClick={() => {
-                          goToSlide(n);
+                          goToPage(n);
                           setShowThumbs(false);
                         }}
                       >
@@ -631,12 +679,22 @@ export default function Presentation() {
                               </svg>
                             </span>
                           ) : null}
-                          <iframe
-                            src={getSlideUrl(n)}
-                            frameBorder="0"
-                            tabIndex="-1"
-                            scrolling="no"
-                            title={`Page ${n}`}
+                          <canvas
+                            ref={(el) => {
+                              if (el && pdfDocRef.current && !el.dataset.rendered) {
+                                el.dataset.rendered = 'true';
+                                pdfDocRef.current.getPage(n).then((page) => {
+                                  const viewport = page.getViewport({ scale: 0.3 });
+                                  el.height = viewport.height;
+                                  el.width = viewport.width;
+                                  page.render({
+                                    canvasContext: el.getContext('2d'),
+                                    viewport: viewport,
+                                  });
+                                });
+                              }
+                            }}
+                            className="thumb-canvas"
                           />
                         </div>
                         <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -654,12 +712,44 @@ export default function Presentation() {
             <div className="bookmark-card" onClick={(e) => e.stopPropagation()}>
               <div className="bookmark-header">
                 <span>Bookmarks</span>
-                <button className="icon-btn" onClick={() => setShowBookmarks(false)}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
+                <div className="bookmark-header-actions">
+                  <a
+                    className="icon-btn"
+                    href={PPT_URL}
+                    download="Bible Stories.pptx"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Download PPT"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    <span>PPT</span>
+                  </a>
+                  <a
+                    className="icon-btn"
+                    href={PDF_URL}
+                    download="Bible Stories.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Download PDF"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    <span>PDF</span>
+                  </a>
+                  <button className="icon-btn" onClick={() => setShowBookmarks(false)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               {bookmarks.length === 0 ? (
                 <div className="bookmark-empty">No bookmarks yet.</div>
@@ -670,7 +760,7 @@ export default function Presentation() {
                       key={n}
                       className={`thumb-item ${n === currentSlide ? 'active' : ''} bookmarked`}
                       onClick={() => {
-                        goToSlide(n);
+                        goToPage(n);
                         setShowBookmarks(false);
                       }}
                       title={`Go to page ${n}`}
@@ -697,12 +787,22 @@ export default function Presentation() {
                             <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
-                        <iframe
-                          src={getSlideUrl(n)}
-                          frameBorder="0"
-                          tabIndex="-1"
-                          scrolling="no"
-                          title={`Page ${n}`}
+                        <canvas
+                          ref={(el) => {
+                            if (el && pdfDocRef.current && !el.dataset.rendered) {
+                              el.dataset.rendered = 'true';
+                              pdfDocRef.current.getPage(n).then((page) => {
+                                const viewport = page.getViewport({ scale: 0.3 });
+                                el.height = viewport.height;
+                                el.width = viewport.width;
+                                page.render({
+                                  canvasContext: el.getContext('2d'),
+                                  viewport: viewport,
+                                });
+                              });
+                            }
+                          }}
+                          className="bookmark-thumb-canvas"
                         />
                       </div>
                       <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -730,27 +830,25 @@ export default function Presentation() {
           cursor: default;
         }
 
-        /* ── Iframe ── */
-        .iframe-wrap {
-          position: absolute;
-          inset: 0;
-          transition: opacity 0.22s ease;
-          z-index: 1;
-        }
-
-        .iframe-wrap.fading {
-          opacity: 0.12;
-        }
-
-        .iframe-wrap iframe {
+        /* ── PDF Viewer ── */
+        .pdf-viewer-container {
           position: absolute;
           inset: 0;
           z-index: 1;
-          width: 100%;
-          height: 100%;
-          border: none;
-          display: block;
-          pointer-events: none;
+          background: #000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: auto;
+        }
+
+        .pdf-canvas {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+          image-rendering: -webkit-optimize-contrast;
+          image-rendering: crisp-edges;
+          image-rendering: pixelated;
         }
 
         .loader {
@@ -761,6 +859,7 @@ export default function Presentation() {
           justify-content: center;
           z-index: 11;
           pointer-events: none;
+          background: #000;
         }
 
         .spinner {
@@ -837,7 +936,7 @@ export default function Presentation() {
           font-family: var(--font-mono);
           font-size: 12px;
           letter-spacing: 0.1em;
-          color: rgba(240,237,232,0.55);
+          color: var(--gold);
         }
         .slide-counter .sep {
           color: var(--gold);
@@ -929,7 +1028,7 @@ export default function Presentation() {
           width: 6px;
           height: 6px;
           border-radius: 50%;
-          background: rgba(255,255,255,0.2);
+          background: var(--gold);
           border: none;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -940,7 +1039,7 @@ export default function Presentation() {
           transform: scale(1.3);
         }
         .dot.active {
-          background: var(--gold);
+          background: #fff;
           transform: scale(1.4);
         }
 
@@ -949,23 +1048,31 @@ export default function Presentation() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 36px;
+          gap: 6px;
+          padding: 0 10px;
           height: 36px;
           background: transparent;
           border: none;
-          color: rgba(240, 237, 232, 0.55);
+          color: var(--gold);
           cursor: pointer;
           transition: color 0.2s ease, background 0.2s ease;
           border-radius: 4px;
           text-decoration: none;
+          font-size: 11px;
+          font-family: var(--font-mono);
+          letter-spacing: 0.05em;
         }
         :global(.icon-btn:hover) {
-          color: var(--gold);
+          color: #fff;
           background: rgba(200, 169, 110, 0.08);
         }
 
         :global(.icon-btn.is-active) {
-          color: var(--gold);
+          color: #fff;
+        }
+
+        :global(.icon-btn span) {
+          display: inline;
         }
 
         /* ── Thumbnail panel ── */
@@ -1184,7 +1291,7 @@ export default function Presentation() {
           gap: 7px;
           align-items: center;
           background: transparent;
-          border: 1px solid rgba(255,255,255,0.06);
+          border: 1px solid var(--gold);
           cursor: pointer;
           padding: 6px 6px 10px;
           transition: border-color 0.2s ease, background 0.2s ease;
@@ -1194,7 +1301,7 @@ export default function Presentation() {
           background: rgba(200, 169, 110, 0.04);
         }
         .thumb-item.active {
-          border-color: var(--gold);
+          border-color: #fff;
         }
 
         .thumb-item.bookmarked {
@@ -1207,6 +1314,36 @@ export default function Presentation() {
           overflow: hidden;
           background: #111;
           position: relative;
+        }
+
+        .thumb-placeholder {
+          width: 100%;
+          aspect-ratio: 16/9;
+          background: rgba(255,255,255,0.04);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          color: var(--text-muted);
+          border-radius: 3px;
+          transform: scale(0.294);
+          transform-origin: top left;
+          pointer-events: none;
+          border: none;
+        }
+
+        .bookmark-thumb-canvas {
+          width: 100%;
+          aspect-ratio: 16/9;
+          object-fit: contain;
+          border-radius: 3px;
+        }
+
+        .thumb-canvas {
+          width: 100%;
+          aspect-ratio: 16/9;
+          object-fit: contain;
+          border-radius: 3px;
         }
 
         .thumb-bookmark {
@@ -1240,10 +1377,10 @@ export default function Presentation() {
           font-family: var(--font-mono);
           font-size: 10px;
           letter-spacing: 0.1em;
-          color: var(--text-muted);
+          color: var(--gold);
         }
         .thumb-item.active .thumb-num {
-          color: var(--gold);
+          color: #fff;
         }
 
         .bookmark-panel {
@@ -1280,6 +1417,11 @@ export default function Presentation() {
           letter-spacing: 0.14em;
           color: var(--text-muted);
           flex-shrink: 0;
+        }
+
+        .bookmark-header-actions {
+          display: flex;
+          gap: 4px;
         }
 
         .bookmark-empty {

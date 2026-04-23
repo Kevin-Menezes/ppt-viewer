@@ -2,10 +2,11 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 
-const PRESENTATION_ID = '1Oiqm4c91gB9sH31T-fcdSI0eTysspC3A';
-const DOWNLOAD_URL = `https://docs.google.com/presentation/d/${PRESENTATION_ID}/export/pptx`;
+const PRESENTATION_NAME = 'bible-stories';
+const DOWNLOAD_URL = '/pdf/Bible%20Stories.pdf';
+const PPT_URL = '/ppt/Bible%20Stories.pptx';
 
-const STORAGE_KEY_PROGRESS = `pptViewer.progress.${PRESENTATION_ID}`;
+const STORAGE_KEY_PROGRESS = `pdfViewer.progress.${PRESENTATION_NAME}`;
 
 function safeParseJson(value, fallback) {
   try {
@@ -107,13 +108,13 @@ export default function Home() {
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <polygon points="5,2 13,8 5,14" fill="currentColor" />
               </svg>
-              View Stories
+              Start Bible Stories
             </button>
 
             <a
               className="btn btn--ghost"
-              href={DOWNLOAD_URL}
-              download="presentation.pptx"
+              href={PPT_URL}
+              download="Bible Stories.pptx"
               target="_blank"
               rel="noreferrer"
             >
@@ -122,7 +123,22 @@ export default function Home() {
                 <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
-              Download .pptx
+              Download PPT
+            </a>
+
+            <a
+              className="btn btn--ghost"
+              href={DOWNLOAD_URL}
+              download="Bible Stories.pdf"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <line x1="8" y1="2" x2="8" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <polyline points="4,7 8,11 12,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="2" y1="14" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Download PDF
             </a>
           </div>
         </div>

@@ -1,16 +1,16 @@
 {
-  "name": "ppt-viewer",
+  "name": "pdf-viewer",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "index": "node scripts/generate-ppt-index.js",
+    "index": "node scripts/generate-pdf-index.js",
     "dev": "npm run index && next dev",
     "build": "npm run index && next build && node -e \"require('fs').writeFileSync('out/.nojekyll','')\"",
     "start": "node -e \"console.log('Static export enabled. Deploy the out/ folder (e.g. GitHub Pages).')\""
   },
   "dependencies": {
-    "adm-zip": "0.5.12",
     "next": "14.2.3",
+    "pdfjs-dist": "3.11.174",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   }

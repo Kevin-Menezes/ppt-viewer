@@ -107,7 +107,10 @@ export default function Presentation() {
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
-        const viewport = page.getViewport({ scale: 1.5 });
+        // Use lower scale for mobile devices to improve performance
+        const isMobile = window.innerWidth < 768;
+        const scale = isMobile ? 0.8 : 1.5;
+        const viewport = page.getViewport({ scale });
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
@@ -844,9 +847,7 @@ export default function Presentation() {
           max-width: 100%;
           max-height: 100%;
           object-fit: contain;
-          image-rendering: -webkit-optimize-contrast;
-          image-rendering: crisp-edges;
-          image-rendering: pixelated;
+          image-rendering: auto;
         }
 
         .loader {

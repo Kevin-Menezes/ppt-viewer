@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "index": "node scripts/generate-pdf-index.js",
-    "dev": "npm run index && next dev",
-    "build": "npm run index && next build && node -e \"require('fs').writeFileSync('out/.nojekyll','')\"",
+    "generate-pages-index": "node scripts/generate-pages-index.js",
+    "dev": "npm run index && npm run generate-pages-index && next dev",
+    "build": "npm run index && npm run generate-pages-index && next build && node -e \"require('fs').writeFileSync('out/.nojekyll','')\"",
     "start": "node -e \"console.log('Static export enabled. Deploy the out/ folder (e.g. GitHub Pages).')\""
   },
   "dependencies": {

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 
 const PRESENTATION_NAME = 'bible-stories';
-const DOWNLOAD_URL = '/bible-stories/pdf/Bible-Stories.pdf';
+const DOWNLOAD_URL = 'pdf/Bible-Stories.pdf';
 const PPT_URL = 'https://1drv.ms/p/c/9da6160325629680/IQCAlmIlAxamIICd1QMAAAAAAXgCGwaUB9WUlii7hB-n4ZE?e=rMw4Wx';
 
 const STORAGE_KEY_PROGRESS = `pdfViewer.progress.${PRESENTATION_NAME}`;
@@ -91,7 +91,7 @@ export default function Home() {
               transform: mounted ? 'translateY(0)' : 'translateY(16px)',
             }}
           >
-            When you get to know more about God, you'll begin to love Him even more.
+            When you get to know more about God, you'll begin to love Him even more🤍
           </p>
 
           <div
@@ -140,13 +140,24 @@ export default function Home() {
               Download PDF
             </a>
           </div>
+
+          <div
+            className="footer"
+            style={{
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? 'translateY(0)' : 'translateY(16px)',
+            }}
+          >
+            Made with 🤍 for God & his people<br />
+            Copyright © : 2026+ Kevin Menezes
+          </div>
         </div>
 
         <div
           className="status-bar"
           style={{ opacity: mounted ? 1 : 0 }}
         >
-        
+
         </div>
       </div>
       )}
@@ -248,8 +259,9 @@ export default function Home() {
           font-family: var(--font-mono);
           font-size: 12px;
           letter-spacing: 0.18em;
-          color: var(--text-muted);
+          color: #fff;
           margin-bottom: 56px;
+          padding: 0 20px;
           transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
           transition-delay: 0.3s;
         }
@@ -317,6 +329,19 @@ export default function Home() {
           transition: opacity 1.2s var(--ease-out);
           transition-delay: 0.6s;
           white-space: nowrap;
+        }
+
+        /* Footer */
+        .footer {
+          font-family: var(--font-mono);
+          font-size: 10px;
+          letter-spacing: 0.12em;
+          color: #888;
+          margin-top: 32px;
+          padding: 0 20px;
+          transition: opacity 1.2s var(--ease-out), transform 1.2s var(--ease-out);
+          transition-delay: 0.9s;
+          text-align: center;
         }
         .status-dot {
           width: 5px;

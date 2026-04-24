@@ -4,8 +4,8 @@ const nextConfig = {
   output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
-  basePath: '/bible-stories',
-  assetPrefix: '/bible-stories',
+  basePath: '',
+  assetPrefix: '',
 };
 
 module.exports = nextConfig;

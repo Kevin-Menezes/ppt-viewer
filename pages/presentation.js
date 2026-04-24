@@ -1,16 +1,12 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-}
 
 const PRESENTATION_NAME = 'bible-stories';
-const PDF_URL = '/bible-stories/pdf/Bible-Stories.pdf';
+const PDF_URL = '/pdf/Bible-Stories.pdf';
 const PPT_URL = 'https://1drv.ms/p/c/9da6160325629680/IQCAlmIlAxamIICd1QMAAAAAAXgCGwaUB9WUlii7hB-n4ZE?e=rMw4Wx';
 const TOTAL_PAGES = 154; // will be updated from index
+const PAGES_BASE_URL = '/pages';
 
 const STORAGE_KEYS = {
   progress: `pdfViewer.progress.${PRESENTATION_NAME}`,
@@ -38,8 +34,6 @@ export default function Presentation() {
   const router = useRouter();
   const hideTimerRef = useRef(null);
   const didInitRef = useRef(false);
-  const canvasRef = useRef(null);
-  const pdfDocRef = useRef(null);
 
   const [currentSlide, setCurrentSlide] = useState(1);
   const [totalPages, setTotalPages] = useState(TOTAL_PAGES);
@@ -48,8 +42,10 @@ export default function Presentation() {
   const [showThumbs, setShowThumbs] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState([]);
-  const [pdfLoaded, setPdfLoaded] = useState(false);
-  const [rendering, setRendering] = useState(false);
+  const [pagesLoaded, setPagesLoaded] = useState(false);
+  const [pagesData, setPagesData] = useState(null);
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [showPortraitWarning, setShowPortraitWarning] = useState(false);
 
   const [thumbPage, setThumbPage] = useState(1);
   const [thumbQuery, setThumbQuery] = useState('');
@@ -72,63 +68,63 @@ export default function Presentation() {
     }
   }, []);
 
-  // Load PDF document
+  // Detect portrait orientation and show warning once per session
+  useEffect(() => {
+    const checkOrientation = () => {
+      if (typeof window !== 'undefined') {
+        const portrait = window.innerHeight > window.innerWidth;
+        setIsPortrait(portrait);
+
+        // Hide warning if rotated to landscape
+        if (!portrait) {
+          setShowPortraitWarning(false);
+        }
+      }
+    };
+
+    // Show warning once on mount if in portrait
+    if (typeof window !== 'undefined' && window.innerHeight > window.innerWidth) {
+      setShowPortraitWarning(true);
+    }
+
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
+
+  // Load pages data
   useEffect(() => {
     if (!mounted) return;
 
-    const loadPDF = async () => {
+    const loadPages = async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument(PDF_URL);
-        const pdf = await loadingTask.promise;
-        pdfDocRef.current = pdf;
-        setTotalPages(pdf.numPages);
-        setPdfLoaded(true);
+        const url = `${router.basePath || ''}/pages/pages.json`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.error('Pages data not found. Run: npm run generate-pages-index');
+          return;
+        }
+        const data = await res.json();
+        setPagesData(data);
+        setTotalPages(data.totalPages);
+        setPagesLoaded(true);
         try {
-          window.localStorage.setItem(STORAGE_KEYS.totalPages, String(pdf.numPages));
+          window.localStorage.setItem(STORAGE_KEYS.totalPages, String(data.totalPages));
         } catch {
         }
       } catch (error) {
-        console.error('Error loading PDF:', error);
+        console.error('Error loading pages data:', error);
       }
     };
 
-    loadPDF();
-  }, [mounted]);
+    loadPages();
+  }, [mounted, router.basePath]);
 
-  // Render current page
-  useEffect(() => {
-    if (!pdfLoaded || !pdfDocRef.current || !canvasRef.current || rendering) return;
-
-    const renderPage = async () => {
-      setRendering(true);
-      try {
-        const pdf = pdfDocRef.current;
-        const page = await pdf.getPage(currentSlide);
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
-
-        // Use lower scale for mobile devices to improve performance
-        const isMobile = window.innerWidth < 768;
-        const scale = isMobile ? 0.8 : 1.5;
-        const viewport = page.getViewport({ scale });
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-        };
-
-        await page.render(renderContext).promise;
-      } catch (error) {
-        console.error('Error rendering page:', error);
-      } finally {
-        setRendering(false);
-      }
-    };
-
-    renderPage();
-  }, [pdfLoaded, currentSlide, rendering]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -362,28 +358,43 @@ export default function Presentation() {
         />
       </Head>
 
+      {showPortraitWarning && (
+        <div className="portrait-warning">
+          <div className="portrait-warning-content">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="7" width="20" height="10" rx="2" />
+              <circle cx="12" cy="12" r="1" />
+            </svg>
+            <p>Please rotate your phone for better viewing</p>
+            <button
+              className="portrait-warning-close"
+              onClick={() => setShowPortraitWarning(false)}
+            >
+              Continue in portrait mode
+            </button>
+          </div>
+        </div>
+      )}
+
       <div
         className={`viewer ${mounted ? 'mounted' : ''}`}
         onMouseMove={showControls}
       >
         <div className="pdf-viewer-container">
-          {!pdfLoaded ? (
+          {!pagesLoaded ? (
             <div className="loader">
               <span className="spinner" />
             </div>
           ) : (
-            <canvas ref={canvasRef} className="pdf-canvas" />
+            <img
+              src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(currentSlide).padStart(4, '0')}.jpg`}
+              alt={`Page ${currentSlide}`}
+              className="pdf-canvas"
+            />
           )}
         </div>
 
         <div className={`topbar ${controlsVisible ? 'visible' : ''}`}>
-          <button className="icon-btn" onClick={prev} title="Previous page">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <polyline points="11,4 6,9 11,14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span>Back</span>
-          </button>
-
           <div className="topbar-title">
             <span className="slide-counter">
               {String(currentSlide).padStart(2, '0')}
@@ -398,7 +409,7 @@ export default function Presentation() {
               onClick={() => setShowThumbs((v) => !v)}
               title="Page overview"
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <svg width="24" height="24" viewBox="0 0 18 18" fill="none">
                 <rect x="2" y="2" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
                 <rect x="10" y="2" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
                 <rect x="2" y="11" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
@@ -411,7 +422,7 @@ export default function Presentation() {
               onClick={toggleBookmark}
               title={isBookmarked ? 'Remove bookmark' : 'Add bookmark'}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <svg width="24" height="24" viewBox="0 0 18 18" fill="none">
                 <path
                   d="M5 3.2h8c.55 0 1 .45 1 1V15l-5-2.6L4 15V4.2c0-.55.45-1 1-1Z"
                   stroke="currentColor"
@@ -428,7 +439,7 @@ export default function Presentation() {
               onClick={() => setShowBookmarks((v) => !v)}
               title="Bookmarks"
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <svg width="24" height="24" viewBox="0 0 18 18" fill="none">
                 <path
                   d="M4.5 4.5h9M4.5 8h9M4.5 11.5h6.2"
                   stroke="currentColor"
@@ -438,7 +449,7 @@ export default function Presentation() {
               </svg>
             </button>
             <button className="icon-btn" onClick={toggleFullscreen} title="Fullscreen">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <svg width="24" height="24" viewBox="0 0 18 18" fill="none">
                 <path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
@@ -633,21 +644,9 @@ export default function Presentation() {
                                 </svg>
                               </span>
                             ) : null}
-                            <canvas
-                              ref={(el) => {
-                                if (el && pdfDocRef.current && !el.dataset.rendered) {
-                                  el.dataset.rendered = 'true';
-                                  pdfDocRef.current.getPage(n).then((page) => {
-                                    const viewport = page.getViewport({ scale: 0.3 });
-                                    el.height = viewport.height;
-                                    el.width = viewport.width;
-                                    page.render({
-                                      canvasContext: el.getContext('2d'),
-                                      viewport: viewport,
-                                    });
-                                  });
-                                }
-                              }}
+                            <img
+                              src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
+                              alt={`Page ${n}`}
                               className="thumb-canvas"
                             />
                           </div>
@@ -681,21 +680,9 @@ export default function Presentation() {
                               </svg>
                             </span>
                           ) : null}
-                          <canvas
-                            ref={(el) => {
-                              if (el && pdfDocRef.current && !el.dataset.rendered) {
-                                el.dataset.rendered = 'true';
-                                pdfDocRef.current.getPage(n).then((page) => {
-                                  const viewport = page.getViewport({ scale: 0.3 });
-                                  el.height = viewport.height;
-                                  el.width = viewport.width;
-                                  page.render({
-                                    canvasContext: el.getContext('2d'),
-                                    viewport: viewport,
-                                  });
-                                });
-                              }
-                            }}
+                          <img
+                            src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
+                            alt={`Page ${n}`}
                             className="thumb-canvas"
                           />
                         </div>
@@ -788,21 +775,9 @@ export default function Presentation() {
                             <line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
-                        <canvas
-                          ref={(el) => {
-                            if (el && pdfDocRef.current && !el.dataset.rendered) {
-                              el.dataset.rendered = 'true';
-                              pdfDocRef.current.getPage(n).then((page) => {
-                                const viewport = page.getViewport({ scale: 0.3 });
-                                el.height = viewport.height;
-                                el.width = viewport.width;
-                                page.render({
-                                  canvasContext: el.getContext('2d'),
-                                  viewport: viewport,
-                                });
-                              });
-                            }
-                          }}
+                        <img
+                          src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
+                          alt={`Page ${n}`}
                           className="bookmark-thumb-canvas"
                         />
                       </div>
@@ -876,6 +851,50 @@ export default function Presentation() {
           to { transform: rotate(360deg); }
         }
 
+        .portrait-warning {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.95);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .portrait-warning-content {
+          text-align: center;
+          color: var(--gold);
+        }
+
+        .portrait-warning-content svg {
+          margin-bottom: 16px;
+          color: var(--gold);
+        }
+
+        .portrait-warning-content p {
+          font-size: 16px;
+          margin: 0 0 20px 0;
+          letter-spacing: 0.05em;
+        }
+
+        .portrait-warning-close {
+          margin-top: 16px;
+          padding: 10px 24px;
+          background: rgba(200, 169, 110, 0.15);
+          border: 1px solid rgba(200, 169, 110, 0.4);
+          color: var(--gold);
+          font-size: 14px;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .portrait-warning-close:hover {
+          background: rgba(200, 169, 110, 0.25);
+          border-color: var(--gold);
+        }
+
         /* ── Click zones ── */
         .zone {
           position: absolute;
@@ -927,13 +946,11 @@ export default function Presentation() {
         }
 
         .topbar-title {
-          position: absolute;
-          left: 50%;
-          transform: translateX(-50%);
+          flex-shrink: 0;
         }
         .slide-counter {
           font-family: var(--font-mono);
-          font-size: 12px;
+          font-size: 18px;
           letter-spacing: 0.1em;
           color: var(--gold);
         }
@@ -1475,8 +1492,8 @@ export default function Presentation() {
           }
 
           :global(.icon-btn) {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
           }
 
           .controls {

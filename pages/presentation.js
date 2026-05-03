@@ -46,6 +46,8 @@ export default function Presentation() {
   const [pagesData, setPagesData] = useState(null);
   const [isPortrait, setIsPortrait] = useState(false);
   const [showPortraitWarning, setShowPortraitWarning] = useState(false);
+  const [currentImageSrc, setCurrentImageSrc] = useState(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   const [thumbPage, setThumbPage] = useState(1);
   const [thumbQuery, setThumbQuery] = useState('');
@@ -124,6 +126,48 @@ export default function Presentation() {
 
     loadPages();
   }, [mounted, router.basePath]);
+
+  // Preload images and manage current image source
+  useEffect(() => {
+    if (!pagesLoaded || !totalPages) return;
+
+    const loadImage = (page) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img.src);
+        img.onerror = reject;
+        img.src = `${PAGES_BASE_URL}/Bible-Stories_page-${String(page).padStart(4, '0')}.jpg`;
+      });
+    };
+
+    // Load current image
+    const currentSrc = `${PAGES_BASE_URL}/Bible-Stories_page-${String(currentSlide).padStart(4, '0')}.jpg`;
+    setImageLoading(true);
+
+    loadImage(currentSlide)
+      .then(() => {
+        setCurrentImageSrc(currentSrc);
+        setImageLoading(false);
+      })
+      .catch(() => {
+        setCurrentImageSrc(currentSrc);
+        setImageLoading(false);
+      });
+
+    // Preload next and previous images
+    const preloadImages = async () => {
+      const pagesToPreload = [];
+      if (currentSlide < totalPages) pagesToPreload.push(currentSlide + 1);
+      if (currentSlide > 1) pagesToPreload.push(currentSlide - 1);
+      if (currentSlide + 1 < totalPages) pagesToPreload.push(currentSlide + 2);
+
+      for (const page of pagesToPreload) {
+        loadImage(page).catch(() => {});
+      }
+    };
+
+    preloadImages();
+  }, [currentSlide, pagesLoaded, totalPages, PAGES_BASE_URL]);
 
 
   useEffect(() => {
@@ -385,9 +429,13 @@ export default function Presentation() {
             <div className="loader">
               <span className="spinner" />
             </div>
+          ) : imageLoading ? (
+            <div className="loader">
+              <span className="spinner" />
+            </div>
           ) : (
             <img
-              src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(currentSlide).padStart(4, '0')}.jpg`}
+              src={currentImageSrc}
               alt={`Page ${currentSlide}`}
               className="pdf-canvas"
             />
@@ -648,6 +696,7 @@ export default function Presentation() {
                               src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
                               alt={`Page ${n}`}
                               className="thumb-canvas"
+                              loading="lazy"
                             />
                           </div>
                           <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -684,6 +733,7 @@ export default function Presentation() {
                             src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
                             alt={`Page ${n}`}
                             className="thumb-canvas"
+                            loading="lazy"
                           />
                         </div>
                         <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -779,6 +829,7 @@ export default function Presentation() {
                           src={`${PAGES_BASE_URL}/Bible-Stories_page-${String(n).padStart(4, '0')}.jpg`}
                           alt={`Page ${n}`}
                           className="bookmark-thumb-canvas"
+                          loading="lazy"
                         />
                       </div>
                       <span className="thumb-num">{String(n).padStart(2, '0')}</span>
@@ -1353,6 +1404,7 @@ export default function Presentation() {
           aspect-ratio: 16/9;
           object-fit: contain;
           border-radius: 3px;
+          background: #1a1a1a;
         }
 
         .thumb-canvas {
@@ -1360,6 +1412,7 @@ export default function Presentation() {
           aspect-ratio: 16/9;
           object-fit: contain;
           border-radius: 3px;
+          background: #1a1a1a;
         }
 
         .thumb-bookmark {

@@ -428,10 +428,12 @@ export default function Presentation() {
           {!pagesLoaded ? (
             <div className="loader">
               <span className="spinner" />
+              <div className="loader-text">Please wait a few seconds while the page loads...</div>
             </div>
           ) : imageLoading ? (
             <div className="loader">
               <span className="spinner" />
+              <div className="loader-text">Please wait a few seconds while the page loads...</div>
             </div>
           ) : (
             <img
@@ -880,6 +882,7 @@ export default function Presentation() {
           position: absolute;
           inset: 0;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           z-index: 11;
@@ -900,6 +903,15 @@ export default function Presentation() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        .loader-text {
+          margin-top: 16px;
+          color: #fff;
+          font-family: var(--font-mono);
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-align: center;
         }
 
         .portrait-warning {

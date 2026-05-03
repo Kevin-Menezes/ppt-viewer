@@ -428,12 +428,12 @@ export default function Presentation() {
           {!pagesLoaded ? (
             <div className="loader">
               <span className="spinner" />
-              <div className="loader-text">Please wait a few seconds while the page loads...</div>
+              <div className="loader-text">Please pray Hail Marys for few seconds while the page loads...</div>
             </div>
           ) : imageLoading ? (
             <div className="loader">
               <span className="spinner" />
-              <div className="loader-text">Please wait a few seconds while the page loads...</div>
+              <div className="loader-text">Please pray Hail Marys for few seconds while the page loads...</div>
             </div>
           ) : (
             <img
